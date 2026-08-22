@@ -173,13 +173,24 @@
   (ensure-set 'set-equalizer 1 set2)
   (when (null? funcs)
     (raise-arguments-error 'set-equalizer "expected at least one function"))
+  ;; Validate procedures/functions and verify domain/codomain alignment up front
   (for ([f (in-list funcs)] [i (in-naturals 2)])
-    (ensure-procedure 'set-equalizer i f 1))
+    (ensure-procedure 'set-equalizer i f 1)
+    (when (function? f)
+      (unless (set=? (function-src f) set1)
+        (raise-arguments-error 'set-equalizer 
+                               (format "function ~a source set ~a does not match set1 ~a" f (function-src f) set1)))
+      (unless (set=? (function-tgt f) set2)
+        (raise-arguments-error 'set-equalizer 
+                               (format "function ~a target set ~a does not match set2 ~a" f (function-tgt f) set2)))))
+  
+  (define first-f (first funcs))
+  (define rest-fs (rest funcs))
+  
   (for/set ([e1 set1]
-            #:when (let ([v (map (λ (x) (x e1)) funcs)])
-                     (andmap equal?
-                             (take v (sub1 (length v)))
-                             (rest v))))
+            #:when (let ([val (first-f e1)])
+                     (for/and ([f (in-list rest-fs)])
+                       (equal? val (f e1)))))
     e1))
 
 ;; Pullback: k sets and k functions, then the common codomain set
