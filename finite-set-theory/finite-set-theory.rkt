@@ -93,33 +93,52 @@
            (for/set ([e (in-set s)])
              (list n e)))))
 
+(define (merge-step classes)
+  (cond
+    [(null? classes) '()]
+    [else
+     (let* ([first-class (car classes)]
+            [rest-classes (cdr classes)]
+            ;; Find all sets in rest-classes that overlap with first-class
+            [overlapping (filter (λ (c) (not (set-empty? (set-intersect first-class c)))) rest-classes)]
+            [disjoint (filter (λ (c) (set-empty? (set-intersect first-class c))) rest-classes)])
+       (if (null? overlapping)
+           ;; No overlaps for first-class: keep it and recurse on the rest
+           (cons first-class (merge-step rest-classes))
+           ;; Overlaps found: merge them all into first-class and restart the step
+           (merge-step (cons (apply set-union first-class overlapping) disjoint))))]))
+
 (define (set-coequalizer set1 set2 . funcs)
   (ensure-set 'set-coequalizer 0 set1)
   (ensure-set 'set-coequalizer 1 set2)
   (when (null? funcs)
     (raise-arguments-error 'set-coequalizer "expected at least one function"))
   (for ([f (in-list funcs)] [i (in-naturals 2)])
-    (ensure-procedure 'set-coequalizer i f 1))
-  (set-union
-   (for/set ([e set1])
-     (add-between (map (λ (f) (f e)) funcs) '∼))
-   (set-subtract
-    set2
-    (for*/set ([e set1]
-               [f funcs])
-      (f e)))))
+    (ensure-procedure 'set-coequalizer i f))
+ 
+  ;; 1. Generate set relations for each element in set1 based on the functions
+  (define relations
+    (for/list ([e (in-set set1)])
+      (list->set (for/list ([f (in-list funcs)])
+                   (f e)))))
+  ;; 2. Include all elements from set2 as individual singletons so unmapped elements aren't lost
+  (define singletons
+    (for/list ([e (in-set set2)])
+      (set e)))
+  ;; 3. Merge overlapping equivalence classes into a single set of classes
+  (list->set (merge-step (append relations singletons))))
 
 ;; Pushout: (set A) then k functions and k sets.
 (define (set-pushout . funcsandsets)
   (when (< (length funcsandsets) 3)
     (raise-arguments-error 'set-pushout
-                           "expected (set A) followed by k>=1 functions and k sets"))
+      "expected (set A) followed by k>=1 functions and k sets"))
   (define setA (first funcsandsets))
   (ensure-set 'set-pushout 0 setA)
   (define rst (rest funcsandsets))
   (when (odd? (length rst))
     (raise-arguments-error 'set-pushout
-                           "expected an even number of trailing arguments: k functions then k sets"))
+      "expected an even number of trailing arguments: k functions and k sets"))
   (define k (/ (length rst) 2))
   (define funcs (take rst k))
   (define sets  (drop rst k))
@@ -127,12 +146,20 @@
     (ensure-procedure 'set-pushout (+ i 1) f 1))
   (for ([s sets] [i (in-naturals 1)])
     (ensure-set 'set-pushout (+ i 1 k) s))
-  (for/fold ([acc (for/set ([e setA])
-                    (add-between (map (λ (f) (f e)) funcs) '∼))])
-            ([s sets] [f funcs] [idx (in-naturals)])
-    (set-union acc
-               (map-set (λ (x) (list idx x))
-                        (set-subtract s (map-set f setA))))))
+  ;; 1. For each element in setA, identify its images across all legs as a single relation class
+  (define leg-relations
+    (for/list ([e (in-set setA)])
+      (list->set
+       (for/list ([f (in-list funcs)] [idx (in-naturals)])
+         (list idx (f e))))))
+  ;; 2. Include all disjoint target set elements as tagged singletons
+  (define tagged-singletons
+    (apply append
+           (for/list ([s (in-list sets)] [idx (in-naturals)])
+             (for/list ([x (in-set s)])
+               (set (list idx x))))))
+  ;; 3. Partition via equivalence classes
+  (list->set (merge-step (append leg-relations tagged-singletons))))
 
 (define (set-cartesian-product . sets)
   (when (null? sets)
