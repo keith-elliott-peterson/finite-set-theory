@@ -61,17 +61,141 @@
 
     (values objects morphisms identities composition source target)))
 
-(define (=category? cat1 cat2)
-  (and (equal? (category-objects cat1) (category-objects cat2))
-       (equal? (category-morphisms cat1) (category-morphisms cat2))))
 
 (define (opposite cat)
   (category (category-objects cat)
-            (for/set ([m (in-set (category-morphisms cat))])
-              (list (second m) (first m) (third m)))
+            (category-morphisms cat)
             (category-identities cat)
-            (λ (x y) ((category-composition cat) y x))
-            (category-target cat) (category-source cat)))
+            (λ (g f) ((category-composition cat) f g))
+            (category-target cat)
+            (category-source cat)))
+
+(define (slice-category cat A)
+  ;; 1. Validate inputs using your strict checks
+  (unless (category? cat)
+    (error 'slice-category "expected a category?. Given: ~e" cat))
+  (unless (set-member? (category-objects cat) A)
+    (error 'slice-category "expected ~e to be an object in the category." A))
+
+  (let* ([objs (category-objects cat)]
+         [morphs (category-morphisms cat)]
+         [src (category-source cat)]
+         [tgt (category-target cat)]
+         [comp (category-composition cat)]
+         [idents (category-identities cat)]
+
+         ;; 2. Objects of C/A: pairs (list X f) where f : X -> A
+         [slice-objs
+          (for*/set ([X (in-set objs)]
+                     [f (in-set morphs)]
+                     #:when (and (equal? (src f) X)
+                                 (equal? (tgt f) A)))
+            (list X f))]
+
+         ;; 3. Morphisms of C/A: arrows h : X -> Y in C such that g ∘ h = f
+         [slice-morphs
+          (for*/set ([obj1 (in-set slice-objs)]
+                     [obj2 (in-set slice-objs)]
+                     [h (in-set morphs)]
+                     #:when (let ([X (first obj1)]
+                                  [f (second obj1)]
+                                  [Y (first obj2)]
+                                  [g (second obj2)])
+                              (and (equal? (src h) X)
+                                   (equal? (tgt h) Y)
+                                   (equal? f (comp g h)))))
+            (list h obj1 obj2))]
+
+
+         ;; 4. Identities in C/A: id_X for each (X, f)
+         [slice-idents
+          (λ (obj)
+            (define X (first obj))
+            (define f (second obj))
+            (list (idents X) obj obj))]
+
+         ;; 5. Source and Target in C/A
+         [slice-src (λ (m) (second m))]
+         [slice-tgt (λ (m) (third m))]
+
+         ;; 6. Composition in C/A: compose underlying arrows
+         [slice-comp
+          (λ (m2 m1)
+            (define h1 (first m1))
+            (define h2 (first m2))
+            (list (comp h2 h1) (slice-src m1) (slice-tgt m2)))])
+
+    ;; Feed it right into your struct; the guard will mathematically verify it!
+    (category slice-objs slice-morphs slice-idents slice-comp slice-src slice-tgt)))
+
+
+(define (coslice-category cat A)
+  ;; 1. Validate inputs
+  (unless (category? cat)
+    (error 'coslice-category "expected a category?. Given: ~e" cat))
+  (unless (set-member? (category-objects cat) A)
+    (error 'coslice-category "expected ~e to be an object in the category." A))
+
+  (let* ([objs (category-objects cat)]
+         [morphs (category-morphisms cat)]
+         [src (category-source cat)]
+         [tgt (category-target cat)]
+         [comp (category-composition cat)]
+         [idents (category-identities cat)]
+
+         ;; 2. Objects of A/C: pairs (list X f) where f : A -> X
+         [coslice-objs
+          (for*/set ([X (in-set objs)]
+                     [f (in-set morphs)]
+                     #:when (and (equal? (src f) A)
+                                 (equal? (tgt f) X)))
+            (list X f))]
+
+         ;; 3. Morphisms of A/C: arrows h : X -> Y in C such that h ∘ f = g
+         [coslice-morphs
+          (for*/set ([obj1 (in-set coslice-objs)]
+                     [obj2 (in-set coslice-objs)]
+                     [h (in-set morphs)]
+                     #:when (let ([X (first obj1)] [f (second obj1)]
+                                  [Y (first obj2)] [g (second obj2)])
+                              (and (equal? (src h) X)
+                                   (equal? (tgt h) Y)
+                                   (equal? (comp h f) g)))) ; triangle commutes: h ∘ f = g
+            (list h obj1 obj2))]
+
+         ;; 4. Identities in A/C: id_X for each (X, f)
+         [coslice-idents
+          (λ (obj)
+            (define X (first obj))
+            (define f (second obj))
+            (list (idents X) obj obj))]
+
+         ;; 5. Source and Target in A/C
+         [coslice-src (λ (m) (second m))]
+         [coslice-tgt (λ (m) (third m))]
+
+         ;; 6. Composition in A/C: compose underlying arrows
+         [coslice-comp
+          (λ (m2 m1)
+            (define h1 (first m1))
+            (define h2 (first m2))
+            (list (comp h2 h1) (coslice-src m1) (coslice-tgt m2)))])
+
+    ;; Hand it over to the struct guard for mathematical certification!
+    (category coslice-objs coslice-morphs coslice-idents coslice-comp coslice-src coslice-tgt)))
+
+(define (discrete-category objs)
+  (unless (set? objs)
+    (error 'discrete-category "expected a set for objects. Given: ~e" objs))
+
+  (let* ([morphs objs] ; In a discrete category, morphisms can just be represented by the objects (or their identities)
+         [idents (λ (o) o)]
+         [sources (λ (m) m)]
+         [targets (λ (m) m)]
+         [comp (λ (n m) m)]) ; Since only identities compose, n and m are identical here
+
+    (category objs morphs idents comp sources targets)))
+
 
 (define (composer x y)
   (list (first y) (second x)
