@@ -282,7 +282,7 @@
                      [obj2 (in-set coslice-objs)]
                      [h (in-set morphs)]
                      #:when (let ([X (first obj1)] [f (second obj1)]
-                                  [Y (first obj2)] [g (second obj2)])
+                                                   [Y (first obj2)] [g (second obj2)])
                               (and (equal? (src h) X)
                                    (equal? (tgt h) Y)
                                    (equal? (comp h f) g)))) ; triangle commutes: h ∘ f = g
