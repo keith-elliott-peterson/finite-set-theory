@@ -140,4 +140,6 @@
 (define (fully-faithfull? Funct)
   (and (full? Funct) (faithfull? Funct)))
 
+
+
 (provide (all-defined-out))
