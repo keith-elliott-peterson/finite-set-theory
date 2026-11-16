@@ -140,6 +140,86 @@
 (define (fully-faithfull? Funct)
   (and (full? Funct) (faithfull? Funct)))
 
+(define (comma-category F G)
+  (unless (Functor? F)
+    (error 'comma-category "expected a Functor?, given: ~e" F))
+  (unless (Functor? G)
+    (error 'comma-category "expected a Functor?, given: ~e" G))
+  (unless (=category? (Functor-target F) (Functor-target G))
+    (error 'comma-category "functors must share a codomain."))
 
+  (let* ((A (Functor-source F))
+         (B (Functor-source G))
+         (C (Functor-target F))
+         (F-map (Functor-map F))
+         (G-map (Functor-map G))
+         (A-obj (category-objects A))
+         (B-obj (category-objects B))
+         (C-mor (category-morphisms C))
+         (A-mor (category-morphisms A))
+         (B-mor (category-morphisms B))
+         (A-src (category-source A))
+         (A-tgt (category-target A))
+         (B-src (category-source B))
+         (B-tgt (category-target B))
+         (C-src (category-source C))
+         (C-tgt (category-target C))
+         (A-id (category-identities A))
+         (B-id (category-identities B))
+         (A-comp (category-composition A))
+         (B-comp (category-composition B))
+         (C-comp (category-composition C))
+
+         (comma-objs
+          (for*/set ((a (in-set A-obj))
+                     (b (in-set B-obj))
+                     (alpha (in-set C-mor))
+                     #:when
+                     (and (equal? (C-src alpha) (F-map a))
+                          (equal? (C-tgt alpha) (G-map b))))
+            (list a b alpha)))
+
+         (valid-comma-morphism?
+          (lambda (obj1 obj2 f g)
+            (and
+             (equal? (A-src f) (first obj1))
+             (equal? (A-tgt f) (first obj2))
+             (equal? (B-src g) (second obj1))
+             (equal? (B-tgt g) (second obj2))
+             (equal? (C-comp (G-map g) (third obj1))
+                     (C-comp (third obj2) (F-map f))))))
+
+         (comma-mor
+          (for*/set ((obj1 (in-set comma-objs))
+                     (obj2 (in-set comma-objs))
+                     (f (in-set A-mor))
+                     (g (in-set B-mor))
+                     #:when (valid-comma-morphism? obj1 obj2 f g))
+            (list f g obj1 obj2)))
+
+         (comma-id
+          (lambda (obj)
+            (list (A-id (first obj))
+                  (B-id (second obj))
+                  obj
+                  obj)))
+
+         (comma-src (lambda (m) (third m)))
+         (comma-tgt (lambda (m) (fourth m)))
+
+         (comma-comp
+          (lambda (m2 m1)
+            (list
+             (A-comp (first m2) (first m1))
+             (B-comp (second m2) (second m1))
+             (comma-src m1)
+             (comma-tgt m2)))))
+
+    (category comma-objs
+              comma-mor
+              comma-id
+              comma-comp
+              comma-src
+              comma-tgt)))
 
 (provide (all-defined-out))
