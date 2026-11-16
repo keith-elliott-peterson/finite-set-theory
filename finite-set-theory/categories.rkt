@@ -377,7 +377,7 @@
                  (list 0 0 identity))
             identifier composer first second))
 
-(define (n-simplex n)
+(define (linear-order n)
   (category
    (list->set (build-list (add1 n) identity))
    (for*/set ([i (in-range 0 (add1 n))]
