@@ -91,7 +91,7 @@
    (FunctorCompose (Natural-Transformation-source ntrans) Funct)
    (FunctorCompose (Natural-Transformation-target ntrans) Funct)))
 
-(define (NatTransCompose ntrans1 ntrans2)
+(define (Natural-Transformation-Vertical-Compose ntrans1 ntrans2)
   (define F1 (Natural-Transformation-source ntrans1))
   (define F2 (Natural-Transformation-target ntrans2))
   (unless (=Functor? F1 F2)
