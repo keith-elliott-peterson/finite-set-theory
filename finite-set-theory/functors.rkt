@@ -18,6 +18,12 @@
       (unless (set-member? (category-morphisms target) (map m))
         (error this "expected ~e to be member of ~e" (map m)
                (category-morphisms target))))
+    (for ([o (in-set (category-objects source))])
+  (unless
+      (equal?
+       (map ((category-identities source) o))
+       ((category-identities target) (map o)))
+    (error this "doesn't preserve identities.")))
     (for* ([m (in-set (category-morphisms source))]
            [n (in-set (category-morphisms source))])
       (when (equal? ((category-target source) m)
